@@ -1,6 +1,6 @@
 PROBLEMDIR=$(shell basename `dirname \`pwd\``)"/"$(shell basename `pwd`)
 export OPENGL=0
-export OPT=-O3 -g -march=native
+export OPT=-O3 -g -march=native  
 #export CC=gcc-4.9
 
 all:
