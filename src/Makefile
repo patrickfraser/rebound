@@ -73,21 +73,21 @@ all:
 	# Remove old object files
 	rm -f *.o
 	# Compile all source files 
-	$(CC) $(OPT) $(PREDEF) main.c -c
-	$(CC) $(OPT) $(PREDEF) problem.c -c
-	$(CC) $(OPT) $(PREDEF) tree.c -c
-	$(CC) $(OPT) $(PREDEF) particle.c -c
-	$(CC) $(OPT) $(PREDEF) gravity.c -c
-	$(CC) $(OPT) $(PREDEF) integrator.c -c
-	$(CC) $(OPT) $(PREDEF) boundaries.c -c
-	$(CC) $(OPT) $(PREDEF) input.c -c
-	$(CC) $(OPT) $(PREDEF) output.c -c
-	$(CC) $(OPT) $(PREDEF) collisions.c -c
-	$(CC) $(OPT) $(PREDEF) collision_resolve.c -c
-	$(CC) $(OPT) $(PREDEF) communication_mpi.c -c
-	$(CC) $(OPT) $(PREDEF) zpr.c -c
-	$(CC) $(OPT) $(PREDEF) display.c -c
-	$(CC) $(OPT) $(PREDEF) tools.c -c
+	$(CC) -c $(OPT) $(PREDEF) main.c 
+	$(CC) -c $(OPT) $(PREDEF) problem.c 
+	$(CC) -c $(OPT) $(PREDEF) tree.c 
+	$(CC) -c $(OPT) $(PREDEF) particle.c 
+	$(CC) -c $(OPT) $(PREDEF) gravity.c 
+	$(CC) -c $(OPT) $(PREDEF) integrator.c 
+	$(CC) -c $(OPT) $(PREDEF) boundaries.c 
+	$(CC) -c $(OPT) $(PREDEF) input.c 
+	$(CC) -c $(OPT) $(PREDEF) output.c 
+	$(CC) -c $(OPT) $(PREDEF) collisions.c 
+	$(CC) -c $(OPT) $(PREDEF) collision_resolve.c 
+	$(CC) -c $(OPT) $(PREDEF) communication_mpi.c 
+	$(CC) -c $(OPT) $(PREDEF) zpr.c 
+	$(CC) -c $(OPT) $(PREDEF) display.c 
+	$(CC) -c $(OPT) $(PREDEF) tools.c 
 	$(CC) *.o -o nbody $(LIB)
 
 clean:
