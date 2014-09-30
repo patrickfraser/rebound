@@ -60,4 +60,7 @@ extern double integrator_epsilon;
  **/
 extern double integrator_min_dt;
 
+
+extern double integrator_max_dt;
+
 #endif

@@ -64,9 +64,10 @@ void integrator_generate_constants();
 int 	integrator_force_is_velocitydependent	= 1;	// Turn this off to safe some time if the force is not velocity dependent.
 double 	integrator_epsilon 			= 1e-9;	// Precision parameter 
 							// If it is zero, then a constant timestep is used. 
-int	integrator_epsilon_global		= 1;	// if 1: estimate the fractional error by max(acceleration_error)/max(acceleration), where max is take over all particles.
+int	integrator_epsilon_global		= 0;	// if 1: estimate the fractional error by max(acceleration_error)/max(acceleration), where max is take over all particles.
 							// if 0: estimate the fractional error by max(acceleration_error/acceleration).
 double 	integrator_min_dt 			= 0;	// Minimum timestep used as a floor when adaptive timestepping is enabled.
+double 	integrator_max_dt 			= 0;
 unsigned long integrator_iterations_max_exceeded= 0;	// Count how many times the iteration did not converge
 const double safety_factor 			= 0.25;	// Maximum increase/deacrease of consecutve timesteps.
 
@@ -408,49 +409,39 @@ int integrator_ias15_step() {
 			}
 			integrator_error = maxb6k/maxak;
 		}else{
-			for(int k=0;k<N3;k++) {
-				const double ak  = at[k];
-				const double b6k = b[6][k]; 
-				const double errork = fabs(b6k/ak);
-				if (isnormal(errork) && errork>integrator_error){
-					integrator_error = errork;
+			for(int i=0;i<N;i++) {
+				double errork_max = 0.;
+				for(int k=0;k<3;k++){
+					const double ak  = at[3*i+k];
+					const double b6k = b[6][3*i+k]; 
+					const double errork = fabs(b6k/ak);
+					if (errork>errork_max){
+						errork_max = errork;
+					}
+				}
+
+				if (isnormal(errork_max)){
+					const double dtparticle = pow(integrator_epsilon/errork_max,1./7.)*dt_done;
+					particles[i].dtexp = floor(log(dtparticle/integrator_max_dt)/log(2.));
+					if (errork_max>integrator_error){
+						integrator_error = errork_max;
+					}
+				}else{
+					particles[i].dtexp = 0;
 				}
 			}
 		}
-
-		double dt_new;
-		if  (isnormal(integrator_error)){ 	
-			// if error estimate is available increase by more educated guess
-		 	dt_new = pow(integrator_epsilon/integrator_error,1./7.)*dt_done;
-		}else{					// In the rare case that the error estimate doesn't give a finite number (e.g. when all forces accidentally cancel up to machine precission).
-		 	dt_new = dt_done/safety_factor; // by default, increase timestep a little
-		}
-		
-		if (dt_new<integrator_min_dt) dt_new = integrator_min_dt;
-		
-		if (fabs(dt_new/dt_done) < safety_factor) {	// New timestep is significantly smaller.
-			// Reset particles
-			for(int k=0;k<N;++k) {
-				particles[k].x = x0[3*k+0];	// Set inital position
-				particles[k].y = x0[3*k+1];
-				particles[k].z = x0[3*k+2];
-
-				particles[k].vx = v0[3*k+0];	// Set inital velocity
-				particles[k].vy = v0[3*k+1];
-				particles[k].vz = v0[3*k+2];
+		int min_dtexp = 0;
+		for(int i=0;i<N;i++) {
+			if (particles[i].dtexp<min_dtexp){
+				min_dtexp = particles[i].dtexp;
 			}
-			dt = dt_new;
-			if (dt_last_success!=0.){		// Do not predict next e/b values if this is the first time step.
-				double ratio = dt/dt_last_success;
-				predict_next_step(ratio, N3, er, br);
-			}
-			
-			return 0; // Step rejected. Do again. 
-		}		
-		if (fabs(dt_new/dt_done) > 1.0) {	// New timestep is larger.
-			if (dt_new/dt_done > 1./safety_factor) dt_new = dt_done /safety_factor;	// Don't increase the timestep by too much compared to the last one.
 		}
-		dt = dt_new;
+		printf("mindtxexp %d\n",min_dtexp);
+
+
+		dt = integrator_max_dt* pow(2.,min_dtexp);
+		
 	}
 
 	// Find new position and velocity values at end of the sequence
