@@ -62,6 +62,9 @@ void particles_add_local(struct particle pt){
 		Nmax += 128;
 		particles = realloc(particles,sizeof(struct particle)*Nmax);
 	}
+	pt.dtdone = 0;
+	pt.tdone = t;
+	pt.dtexp = 0;
 	particles[N] = pt;
 #ifdef TREE
 	tree_add_particle_to_tree(N);

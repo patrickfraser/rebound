@@ -46,9 +46,9 @@ struct particle {
 	double ay;	/**< y-acceleration of the particle. */
 	double az;	/**< z-acceleration of the particle. */
 	double m;	/**< Mass of the particle. */
-	double xpast[8];
-	double ypast[8];
-	double zpast[8];
+	double xpast[64][8];
+	double ypast[64][8];
+	double zpast[64][8];
 	double dtdone;
 	double tdone;
 	int dtexp;	/**< Mass of the particle. */
