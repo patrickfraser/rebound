@@ -50,6 +50,7 @@ struct particle {
 	double ypast[8];
 	double zpast[8];
 	double dtdone;
+	double tdone;
 	int dtexp;	/**< Mass of the particle. */
 #ifndef COLLISIONS_NONE
 	double r; 	/**< Radius of the particle. */
