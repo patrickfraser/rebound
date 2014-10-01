@@ -39,6 +39,9 @@
 #include "boundaries.h"
 #include "communication_mpi.h"
 
+
+extern int dtexp;
+
 #ifdef MPI
 #warning GRAVITY_DIRECT might not work with MPI for your problem. 
 #warning Make sure you know what the code is doing. Have a look at the example restricted_threebody_mpi.
@@ -67,6 +70,7 @@ void gravity_calculate_acceleration(){
 		for (int j=1; j<_N_active; j++){
 #else //INTEGRATOR_WH
 		for (int i=0; i<N; i++){
+			if (particles[i].dtexp!=dtexp) continue;
 			double csx = 0;
 			double csy = 0;
 			double csz = 0;

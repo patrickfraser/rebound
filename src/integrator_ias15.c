@@ -62,7 +62,7 @@ void integrator_generate_constants();
 #endif
 
 int 	integrator_force_is_velocitydependent	= 1;	// Turn this off to safe some time if the force is not velocity dependent.
-double 	integrator_epsilon 			= 1e-9;	// Precision parameter 
+double 	integrator_epsilon 			= 1e-5;	// Precision parameter 
 							// If it is zero, then a constant timestep is used. 
 							// if 0: estimate the fractional error by max(acceleration_error/acceleration).
 double 	integrator_min_dt 			= 0;	// Minimum timestep used as a floor when adaptive timestepping is enabled.
@@ -337,7 +337,7 @@ int integrator_ias15_step() {
 			integrator_update_acceleration();				// Calculate forces at interval n
 
 			for(int k=0;k<N;++k) {
-				if (particles[k/3].dtexp != dtexp) continue;
+				if (particles[k].dtexp != dtexp) continue;
 				at[3*k]   = particles[k].ax;
 				at[3*k+1] = particles[k].ay;  
 				at[3*k+2] = particles[k].az;
