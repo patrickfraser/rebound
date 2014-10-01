@@ -64,7 +64,6 @@ void integrator_generate_constants();
 int 	integrator_force_is_velocitydependent	= 1;	// Turn this off to safe some time if the force is not velocity dependent.
 double 	integrator_epsilon 			= 1e-9;	// Precision parameter 
 							// If it is zero, then a constant timestep is used. 
-int	integrator_epsilon_global		= 0;	// if 1: estimate the fractional error by max(acceleration_error)/max(acceleration), where max is take over all particles.
 							// if 0: estimate the fractional error by max(acceleration_error/acceleration).
 double 	integrator_min_dt 			= 0;	// Minimum timestep used as a floor when adaptive timestepping is enabled.
 double 	integrator_max_dt 			= 0;
@@ -128,7 +127,11 @@ void integrator_part2(){
 	// Try until a step was successful.
 	while(!integrator_ias15_step());
 }
- 
+
+int dtexp = 0;
+int dtexp_substep = 0;
+int dtexp_min = 0;
+
 int integrator_ias15_step() {
 	const int N3 = 3*N;
 	if (N3 > N3allocated) {
@@ -160,288 +163,298 @@ int integrator_ias15_step() {
 	}
 	
 	// integrator_update_acceleration(); // Not needed. Forces are already calculated in main routine.
+		
+		
+		dt = integrator_max_dt* pow(8.,dtexp);
+		printf("mindtxexp %d   %d  %e %d \n",dtexp_min,dtexp,dt, dtexp_substep);
+		// Predict new B values to use at the start of the next sequence. The predicted
+		// values from the last call are saved as E. The correction, BD, between the
+		// actual and predicted values of B is applied in advance as a correction.
+		//
+		for(int k=0;k<N3;++k) {
+			if (isnormal(particles[k/3].dtdone)){
+				const double q1 = dt/particles[k/3].dtdone;
+				const double q2 = q1 * q1;
+				const double q3 = q1 * q2;
+				const double q4 = q2 * q2;
+				const double q5 = q2 * q3;
+				const double q6 = q3 * q3;
+				const double q7 = q3 * q4;
 
-	for(int k=0;k<N;k++) {
-		x0[3*k]   = particles[k].x;
-		x0[3*k+1] = particles[k].y;
-		x0[3*k+2] = particles[k].z;
-		v0[3*k]   = particles[k].vx;
-		v0[3*k+1] = particles[k].vy;
-		v0[3*k+2] = particles[k].vz;
-		a0[3*k]   = particles[k].ax;
-		a0[3*k+1] = particles[k].ay;  
-		a0[3*k+2] = particles[k].az;
-	}
+				double be0 = br[0][k] - er[0][k];
+				double be1 = br[1][k] - er[1][k];
+				double be2 = br[2][k] - er[2][k];
+				double be3 = br[3][k] - er[3][k];
+				double be4 = br[4][k] - er[4][k];
+				double be5 = br[5][k] - er[5][k];
+				double be6 = br[6][k] - er[6][k];
 
-	for(int k=0;k<N3;k++) {
-		g[0][k] = b[6][k]*d[15] + b[5][k]*d[10] + b[4][k]*d[6] + b[3][k]*d[3]  + b[2][k]*d[1]  + b[1][k]*d[0]  + b[0][k];
-		g[1][k] = b[6][k]*d[16] + b[5][k]*d[11] + b[4][k]*d[7] + b[3][k]*d[4]  + b[2][k]*d[2]  + b[1][k];
-		g[2][k] = b[6][k]*d[17] + b[5][k]*d[12] + b[4][k]*d[8] + b[3][k]*d[5]  + b[2][k];
-		g[3][k] = b[6][k]*d[18] + b[5][k]*d[13] + b[4][k]*d[9] + b[3][k];
-		g[4][k] = b[6][k]*d[19] + b[5][k]*d[14] + b[4][k];
-		g[5][k] = b[6][k]*d[20] + b[5][k];
-		g[6][k] = b[6][k];
-	}
 
-	double predictor_corrector_error = 1e300;
-	double predictor_corrector_error_last = 2;
-	int iterations = 0;	
-	// Predictor corrector loop
-	// Stops if one of the following conditions is satisfied: 
-	//   1) predictor_corrector_error better than 1e-16 
-	//   2) predictor_corrector_error starts to oscillate
-	//   3) more than 12 iterations
-	while(1){
-		if(predictor_corrector_error<1e-16){
-			break;
-		}
-		if(iterations > 2 && predictor_corrector_error_last <= predictor_corrector_error){
-			break;
-		}
-		if (iterations>=12){
-			integrator_iterations_max_exceeded++;
-			const int integrator_iterations_warning = 10;
-			if (integrator_iterations_max_exceeded==integrator_iterations_warning ){
-				fprintf(stderr,"\n\033[1mWarning!\033[0m At least %d predictor corrector loops in integrator_ias15.c did not converge. This is typically an indication of the timestep being too large.\n",integrator_iterations_warning);
+				e[0][k] = q1*(br[6][k]* 7.0 + br[5][k]* 6.0 + br[4][k]* 5.0 + br[3][k]* 4.0 + br[2][k]* 3.0 + br[1][k]*2.0 + br[0][k]);
+				e[1][k] = q2*(br[6][k]*21.0 + br[5][k]*15.0 + br[4][k]*10.0 + br[3][k]* 6.0 + br[2][k]* 3.0 + br[1][k]);
+				e[2][k] = q3*(br[6][k]*35.0 + br[5][k]*20.0 + br[4][k]*10.0 + br[3][k]* 4.0 + br[2][k]);
+				e[3][k] = q4*(br[6][k]*35.0 + br[5][k]*15.0 + br[4][k]* 5.0 + br[3][k]);
+				e[4][k] = q5*(br[6][k]*21.0 + br[5][k]* 6.0 + br[4][k]);
+				e[5][k] = q6*(br[6][k]* 7.0 + br[5][k]);
+				e[6][k] = q7* br[6][k];
+				
+
+				b[0][k] = e[0][k] + be0;
+				b[1][k] = e[1][k] + be1;
+				b[2][k] = e[2][k] + be2;
+				b[3][k] = e[3][k] + be3;
+				b[4][k] = e[4][k] + be4;
+				b[5][k] = e[5][k] + be5;
+				b[6][k] = e[6][k] + be6;
+			}else{
+				e[0][k] = 0.; 
+				e[1][k] = 0.; 
+				e[2][k] = 0.; 
+				e[3][k] = 0.; 
+				e[4][k] = 0.; 
+				e[5][k] = 0.; 
+				e[6][k] = 0.; 
+				
+
+				b[0][k] = 0.; 
+				b[1][k] = 0.; 
+				b[2][k] = 0.; 
+				b[3][k] = 0.; 
+				b[4][k] = 0.; 
+				b[5][k] = 0.; 
+				b[6][k] = 0.; 
 			}
-			break;								// Quit predictor corrector loop
 		}
-		predictor_corrector_error_last = predictor_corrector_error;
-		predictor_corrector_error = 0;
-		iterations++;
 
-		for(int n=1;n<8;n++) {							// Loop over interval using Gauss-Radau spacings
 
-			s[0] = dt * h[n];
-			s[1] = s[0] * s[0] / 2.;
-			s[2] = s[1] * h[n] / 3.;
-			s[3] = s[2] * h[n] / 2.;
-			s[4] = 3. * s[3] * h[n] / 5.;
-			s[5] = 2. * s[4] * h[n] / 3.;
-			s[6] = 5. * s[5] * h[n] / 7.;
-			s[7] = 3. * s[6] * h[n] / 4.;
-			s[8] = 7. * s[7] * h[n] / 9.;
+		for(int k=0;k<N;k++) {
+			x0[3*k]   = particles[k].x;
+			x0[3*k+1] = particles[k].y;
+			x0[3*k+2] = particles[k].z;
+			v0[3*k]   = particles[k].vx;
+			v0[3*k+1] = particles[k].vy;
+			v0[3*k+2] = particles[k].vz;
+			a0[3*k]   = particles[k].ax;
+			a0[3*k+1] = particles[k].ay;  
+			a0[3*k+2] = particles[k].az;
+		}
 
-			// Prepare particles arrays for force calculation
-			for(int i=0;i<N;i++) {						// Predict positions at interval n using b values
-				const int k0 = 3*i+0;
-				const int k1 = 3*i+1;
-				const int k2 = 3*i+2;
+		for(int k=0;k<N3;k++) {
+			g[0][k] = b[6][k]*d[15] + b[5][k]*d[10] + b[4][k]*d[6] + b[3][k]*d[3]  + b[2][k]*d[1]  + b[1][k]*d[0]  + b[0][k];
+			g[1][k] = b[6][k]*d[16] + b[5][k]*d[11] + b[4][k]*d[7] + b[3][k]*d[4]  + b[2][k]*d[2]  + b[1][k];
+			g[2][k] = b[6][k]*d[17] + b[5][k]*d[12] + b[4][k]*d[8] + b[3][k]*d[5]  + b[2][k];
+			g[3][k] = b[6][k]*d[18] + b[5][k]*d[13] + b[4][k]*d[9] + b[3][k];
+			g[4][k] = b[6][k]*d[19] + b[5][k]*d[14] + b[4][k];
+			g[5][k] = b[6][k]*d[20] + b[5][k];
+			g[6][k] = b[6][k];
+		}
 
-				double xk0  = csx[k0] + (s[8]*b[6][k0] + s[7]*b[5][k0] + s[6]*b[4][k0] + s[5]*b[3][k0] + s[4]*b[2][k0] + s[3]*b[1][k0] + s[2]*b[0][k0] + s[1]*a0[k0] + s[0]*v0[k0] );
-				particles[i].x = xk0 + x0[k0];
-				double xk1  = csx[k1] + (s[8]*b[6][k1] + s[7]*b[5][k1] + s[6]*b[4][k1] + s[5]*b[3][k1] + s[4]*b[2][k1] + s[3]*b[1][k1] + s[2]*b[0][k1] + s[1]*a0[k1] + s[0]*v0[k1] );
-				particles[i].y = xk1 + x0[k1];
-				double xk2  = csx[k2] + (s[8]*b[6][k2] + s[7]*b[5][k2] + s[6]*b[4][k2] + s[5]*b[3][k2] + s[4]*b[2][k2] + s[3]*b[1][k2] + s[2]*b[0][k2] + s[1]*a0[k2] + s[0]*v0[k2] );
-				particles[i].z = xk2 + x0[k2];
+		double predictor_corrector_error = 1e300;
+		double predictor_corrector_error_last = 2;
+		int iterations = 0;	
+		// Predictor corrector loop
+		// Stops if one of the following conditions is satisfied: 
+		//   1) predictor_corrector_error better than 1e-16 
+		//   2) predictor_corrector_error starts to oscillate
+		//   3) more than 12 iterations
+		while(1){
+			if(predictor_corrector_error<1e-16){
+				break;
 			}
-			
-			if (problem_additional_forces && integrator_force_is_velocitydependent){
+			if(iterations > 2 && predictor_corrector_error_last <= predictor_corrector_error){
+				break;
+			}
+			if (iterations>=12){
+				integrator_iterations_max_exceeded++;
+				const int integrator_iterations_warning = 10;
+				if (integrator_iterations_max_exceeded==integrator_iterations_warning ){
+					fprintf(stderr,"\n\033[1mWarning!\033[0m At least %d predictor corrector loops in integrator_ias15.c did not converge. This is typically an indication of the timestep being too large.\n",integrator_iterations_warning);
+				}
+				break;								// Quit predictor corrector loop
+			}
+			predictor_corrector_error_last = predictor_corrector_error;
+			predictor_corrector_error = 0;
+			iterations++;
+
+			for(int n=1;n<8;n++) {							// Loop over interval using Gauss-Radau spacings
+
 				s[0] = dt * h[n];
-				s[1] =      s[0] * h[n] / 2.;
-				s[2] = 2. * s[1] * h[n] / 3.;
-				s[3] = 3. * s[2] * h[n] / 4.;
-				s[4] = 4. * s[3] * h[n] / 5.;
-				s[5] = 5. * s[4] * h[n] / 6.;
-				s[6] = 6. * s[5] * h[n] / 7.;
-				s[7] = 7. * s[6] * h[n] / 8.;
+				s[1] = s[0] * s[0] / 2.;
+				s[2] = s[1] * h[n] / 3.;
+				s[3] = s[2] * h[n] / 2.;
+				s[4] = 3. * s[3] * h[n] / 5.;
+				s[5] = 2. * s[4] * h[n] / 3.;
+				s[6] = 5. * s[5] * h[n] / 7.;
+				s[7] = 3. * s[6] * h[n] / 4.;
+				s[8] = 7. * s[7] * h[n] / 9.;
 
-				for(int i=0;i<N;i++) {					// Predict velocities at interval n using b values
+				// Prepare particles arrays for force calculation
+				for(int i=0;i<N;i++) {						// Predict positions at interval n using b values
 					const int k0 = 3*i+0;
 					const int k1 = 3*i+1;
 					const int k2 = 3*i+2;
 
-					double vk0 =  csv[k0] + s[7]*b[6][k0] + s[6]*b[5][k0] + s[5]*b[4][k0] + s[4]*b[3][k0] + s[3]*b[2][k0] + s[2]*b[1][k0] + s[1]*b[0][k0] + s[0]*a0[k0];
-					particles[i].vx = vk0 + v0[k0];
-					double vk1 =  csv[k1] + s[7]*b[6][k1] + s[6]*b[5][k1] + s[5]*b[4][k1] + s[4]*b[3][k1] + s[3]*b[2][k1] + s[2]*b[1][k1] + s[1]*b[0][k1] + s[0]*a0[k1];
-					particles[i].vy = vk1 + v0[k1];
-					double vk2 =  csv[k2] + s[7]*b[6][k2] + s[6]*b[5][k2] + s[5]*b[4][k2] + s[4]*b[3][k2] + s[3]*b[2][k2] + s[2]*b[1][k2] + s[1]*b[0][k2] + s[0]*a0[k2];
-					particles[i].vz = vk2 + v0[k2];
+					double xk0  = csx[k0] + (s[8]*b[6][k0] + s[7]*b[5][k0] + s[6]*b[4][k0] + s[5]*b[3][k0] + s[4]*b[2][k0] + s[3]*b[1][k0] + s[2]*b[0][k0] + s[1]*a0[k0] + s[0]*v0[k0] );
+					particles[i].x = xk0 + x0[k0];
+					double xk1  = csx[k1] + (s[8]*b[6][k1] + s[7]*b[5][k1] + s[6]*b[4][k1] + s[5]*b[3][k1] + s[4]*b[2][k1] + s[3]*b[1][k1] + s[2]*b[0][k1] + s[1]*a0[k1] + s[0]*v0[k1] );
+					particles[i].y = xk1 + x0[k1];
+					double xk2  = csx[k2] + (s[8]*b[6][k2] + s[7]*b[5][k2] + s[6]*b[4][k2] + s[5]*b[3][k2] + s[4]*b[2][k2] + s[3]*b[1][k2] + s[2]*b[0][k2] + s[1]*a0[k2] + s[0]*v0[k2] );
+					particles[i].z = xk2 + x0[k2];
 				}
-			}
+				
+				if (problem_additional_forces && integrator_force_is_velocitydependent){
+					s[0] = dt * h[n];
+					s[1] =      s[0] * h[n] / 2.;
+					s[2] = 2. * s[1] * h[n] / 3.;
+					s[3] = 3. * s[2] * h[n] / 4.;
+					s[4] = 4. * s[3] * h[n] / 5.;
+					s[5] = 5. * s[4] * h[n] / 6.;
+					s[6] = 6. * s[5] * h[n] / 7.;
+					s[7] = 7. * s[6] * h[n] / 8.;
+
+					for(int i=0;i<N;i++) {					// Predict velocities at interval n using b values
+						const int k0 = 3*i+0;
+						const int k1 = 3*i+1;
+						const int k2 = 3*i+2;
+
+						double vk0 =  csv[k0] + s[7]*b[6][k0] + s[6]*b[5][k0] + s[5]*b[4][k0] + s[4]*b[3][k0] + s[3]*b[2][k0] + s[2]*b[1][k0] + s[1]*b[0][k0] + s[0]*a0[k0];
+						particles[i].vx = vk0 + v0[k0];
+						double vk1 =  csv[k1] + s[7]*b[6][k1] + s[6]*b[5][k1] + s[5]*b[4][k1] + s[4]*b[3][k1] + s[3]*b[2][k1] + s[2]*b[1][k1] + s[1]*b[0][k1] + s[0]*a0[k1];
+						particles[i].vy = vk1 + v0[k1];
+						double vk2 =  csv[k2] + s[7]*b[6][k2] + s[6]*b[5][k2] + s[5]*b[4][k2] + s[4]*b[3][k2] + s[3]*b[2][k2] + s[2]*b[1][k2] + s[1]*b[0][k2] + s[0]*a0[k2];
+						particles[i].vz = vk2 + v0[k2];
+					}
+				}
 
 
-			integrator_update_acceleration();				// Calculate forces at interval n
+				integrator_update_acceleration();				// Calculate forces at interval n
 
-			for(int k=0;k<N;++k) {
-				at[3*k]   = particles[k].ax;
-				at[3*k+1] = particles[k].ay;  
-				at[3*k+2] = particles[k].az;
-			}
-			switch (n) {							// Improve b and g values
-				case 1: 
-					for(int k=0;k<N3;++k) {
-						double tmp = g[0][k];
-						g[0][k]  = (at[k] - a0[k]) / r[0];
-						b[0][k] += g[0][k] - tmp;
-					} break;
-				case 2: 
-					for(int k=0;k<N3;++k) {
-						double tmp = g[1][k];
-						const double gk = at[k] - a0[k];
-						g[1][k] = (gk/r[1] - g[0][k])/r[2];
-						tmp = g[1][k] - tmp;
-						b[0][k] += tmp * c[0];
-						b[1][k] += tmp;
-					} break;
-				case 3: 
-					for(int k=0;k<N3;++k) {
-						double tmp = g[2][k];
-						const double gk = at[k] - a0[k];
-						g[2][k] = ((gk/r[3] - g[0][k])/r[4] - g[1][k])/r[5];
-						tmp = g[2][k] - tmp;
-						b[0][k] += tmp * c[1];
-						b[1][k] += tmp * c[2];
-						b[2][k] += tmp;
-					} break;
-				case 4:
-					for(int k=0;k<N3;++k) {
-						double tmp = g[3][k];
-						const double gk = at[k] - a0[k];
-						g[3][k] = (((gk/r[6] - g[0][k])/r[7] - g[1][k])/r[8] - g[2][k])/r[9];
-						tmp = g[3][k] - tmp;
-						b[0][k] += tmp * c[3];
-						b[1][k] += tmp * c[4];
-						b[2][k] += tmp * c[5];
-						b[3][k] += tmp;
-					} break;
-				case 5:
-					for(int k=0;k<N3;++k) {
-						double tmp = g[4][k];
-						const double gk = at[k] - a0[k];
-						g[4][k] = ((((gk/r[10] - g[0][k])/r[11] - g[1][k])/r[12] - g[2][k])/r[13] - g[3][k])/r[14];
-						tmp = g[4][k] - tmp;
-						b[0][k] += tmp * c[6];
-						b[1][k] += tmp * c[7];
-						b[2][k] += tmp * c[8];
-						b[3][k] += tmp * c[9];
-						b[4][k] += tmp;
-					} break;
-				case 6:
-					for(int k=0;k<N3;++k) {
-						double tmp = g[5][k];
-						const double gk = at[k] - a0[k];
-						g[5][k] = (((((gk/r[15] - g[0][k])/r[16] - g[1][k])/r[17] - g[2][k])/r[18] - g[3][k])/r[19] - g[4][k])/r[20];
-						tmp = g[5][k] - tmp;
-						b[0][k] += tmp * c[10];
-						b[1][k] += tmp * c[11];
-						b[2][k] += tmp * c[12];
-						b[3][k] += tmp * c[13];
-						b[4][k] += tmp * c[14];
-						b[5][k] += tmp;
-					} break;
-				case 7:
-				{
-					double maxak = 0.0;
-					double maxb6ktmp = 0.0;
-					for(int k=0;k<N3;++k) {
-						double tmp = g[6][k];
-						const double gk = at[k] - a0[k];
-						g[6][k] = ((((((gk/r[21] - g[0][k])/r[22] - g[1][k])/r[23] - g[2][k])/r[24] - g[3][k])/r[25] - g[4][k])/r[26] - g[5][k])/r[27];
-						tmp = g[6][k] - tmp;	
-						b[0][k] += tmp * c[15];
-						b[1][k] += tmp * c[16];
-						b[2][k] += tmp * c[17];
-						b[3][k] += tmp * c[18];
-						b[4][k] += tmp * c[19];
-						b[5][k] += tmp * c[20];
-						b[6][k] += tmp;
-						
-						// Monitor change in b[6][k] relative to at[k]. The predictor corrector scheme is converged if it is close to 0.
-						if (integrator_epsilon_global){
-							const double ak  = fabs(at[k]);
-							if (isnormal(ak) && ak>maxak){
-								maxak = ak;
-							}
-							const double b6ktmp = fabs(tmp);  // change of b6ktmp coefficient
-							if (isnormal(b6ktmp) && b6ktmp>maxb6ktmp){
-								maxb6ktmp = b6ktmp;
-							}
-						}else{
+				for(int k=0;k<N;++k) {
+					at[3*k]   = particles[k].ax;
+					at[3*k+1] = particles[k].ay;  
+					at[3*k+2] = particles[k].az;
+				}
+				switch (n) {							// Improve b and g values
+					case 1: 
+						for(int k=0;k<N3;++k) {
+							double tmp = g[0][k];
+							g[0][k]  = (at[k] - a0[k]) / r[0];
+							b[0][k] += g[0][k] - tmp;
+						} break;
+					case 2: 
+						for(int k=0;k<N3;++k) {
+							double tmp = g[1][k];
+							const double gk = at[k] - a0[k];
+							g[1][k] = (gk/r[1] - g[0][k])/r[2];
+							tmp = g[1][k] - tmp;
+							b[0][k] += tmp * c[0];
+							b[1][k] += tmp;
+						} break;
+					case 3: 
+						for(int k=0;k<N3;++k) {
+							double tmp = g[2][k];
+							const double gk = at[k] - a0[k];
+							g[2][k] = ((gk/r[3] - g[0][k])/r[4] - g[1][k])/r[5];
+							tmp = g[2][k] - tmp;
+							b[0][k] += tmp * c[1];
+							b[1][k] += tmp * c[2];
+							b[2][k] += tmp;
+						} break;
+					case 4:
+						for(int k=0;k<N3;++k) {
+							double tmp = g[3][k];
+							const double gk = at[k] - a0[k];
+							g[3][k] = (((gk/r[6] - g[0][k])/r[7] - g[1][k])/r[8] - g[2][k])/r[9];
+							tmp = g[3][k] - tmp;
+							b[0][k] += tmp * c[3];
+							b[1][k] += tmp * c[4];
+							b[2][k] += tmp * c[5];
+							b[3][k] += tmp;
+						} break;
+					case 5:
+						for(int k=0;k<N3;++k) {
+							double tmp = g[4][k];
+							const double gk = at[k] - a0[k];
+							g[4][k] = ((((gk/r[10] - g[0][k])/r[11] - g[1][k])/r[12] - g[2][k])/r[13] - g[3][k])/r[14];
+							tmp = g[4][k] - tmp;
+							b[0][k] += tmp * c[6];
+							b[1][k] += tmp * c[7];
+							b[2][k] += tmp * c[8];
+							b[3][k] += tmp * c[9];
+							b[4][k] += tmp;
+						} break;
+					case 6:
+						for(int k=0;k<N3;++k) {
+							double tmp = g[5][k];
+							const double gk = at[k] - a0[k];
+							g[5][k] = (((((gk/r[15] - g[0][k])/r[16] - g[1][k])/r[17] - g[2][k])/r[18] - g[3][k])/r[19] - g[4][k])/r[20];
+							tmp = g[5][k] - tmp;
+							b[0][k] += tmp * c[10];
+							b[1][k] += tmp * c[11];
+							b[2][k] += tmp * c[12];
+							b[3][k] += tmp * c[13];
+							b[4][k] += tmp * c[14];
+							b[5][k] += tmp;
+						} break;
+					case 7:
+					{
+						for(int k=0;k<N3;++k) {
+							double tmp = g[6][k];
+							const double gk = at[k] - a0[k];
+							g[6][k] = ((((((gk/r[21] - g[0][k])/r[22] - g[1][k])/r[23] - g[2][k])/r[24] - g[3][k])/r[25] - g[4][k])/r[26] - g[5][k])/r[27];
+							tmp = g[6][k] - tmp;	
+							b[0][k] += tmp * c[15];
+							b[1][k] += tmp * c[16];
+							b[2][k] += tmp * c[17];
+							b[3][k] += tmp * c[18];
+							b[4][k] += tmp * c[19];
+							b[5][k] += tmp * c[20];
+							b[6][k] += tmp;
+							
+							// Monitor change in b[6][k] relative to at[k]. The predictor corrector scheme is converged if it is close to 0.
 							const double ak  = at[k];
 							const double b6ktmp = tmp; 
 							const double errork = fabs(b6ktmp/ak);
 							if (isnormal(errork) && errork>predictor_corrector_error){
 								predictor_corrector_error = errork;
 							}
-						}
-					} 
-					if (integrator_epsilon_global){
-						predictor_corrector_error = maxb6ktmp/maxak;
+						} 
+						
+						break;
 					}
-					
-					break;
 				}
 			}
 		}
-	}
 	// Find new timestep
 	const double dt_done = dt;
 	
 	if (integrator_epsilon>0){
-		// Estimate error (given by last term in series expansion) 
-		// There are two options:
-		// integrator_epsilon_global==1  (default)
-		//   First, we determine the maximum acceleration and the maximum of the last term in the series. 
-		//   Then, the two are divided.
-		// integrator_epsilon_global==0
-		//   Here, the fractional error is calculated for each particle individually and we use the maximum of the fractional error.
-		//   This might fail in cases where a particle does not experience any (physical) acceleration besides roundoff errors. 
 		double integrator_error = 0.0;
-		if (integrator_epsilon_global){
-			double maxak = 0.0;
-			double maxb6k = 0.0;
-			for(int i=0;i<N;i++){ // Looping over all particles and all 3 components of the acceleration. 
-				const double v2 = particles[i].vx*particles[i].vx+particles[i].vy*particles[i].vy+particles[i].vz*particles[i].vz;
-				const double x2 = particles[i].x*particles[i].x+particles[i].y*particles[i].y+particles[i].z*particles[i].z;
-				// Skip slowly varying accelerations
-				if (fabs(v2*dt*dt/x2) < 1e-16) continue;
-				for(int k=3*i;k<3*(i+1);k++) { 
-					const double ak  = fabs(at[k]);
-					if (isnormal(ak) && ak>maxak){
-						maxak = ak;
-					}
-					const double b6k = fabs(b[6][k]); 
-					if (isnormal(b6k) && b6k>maxb6k){
-						maxb6k = b6k;
-					}
+		for(int i=0;i<N;i++) {
+			double errork_max = 0.;
+			for(int k=0;k<3;k++){
+				const double ak  = at[3*i+k];
+				const double b6k = b[6][3*i+k]; 
+				const double errork = fabs(b6k/ak);
+				if (errork>errork_max){
+					errork_max = errork;
 				}
 			}
-			integrator_error = maxb6k/maxak;
-		}else{
-			for(int i=0;i<N;i++) {
-				double errork_max = 0.;
-				for(int k=0;k<3;k++){
-					const double ak  = at[3*i+k];
-					const double b6k = b[6][3*i+k]; 
-					const double errork = fabs(b6k/ak);
-					if (errork>errork_max){
-						errork_max = errork;
-					}
-				}
 
-				if (isnormal(errork_max)){
-					const double dtparticle = pow(integrator_epsilon/errork_max,1./7.)*dt_done;
-					particles[i].dtexp = floor(log(dtparticle/integrator_max_dt)/log(2.));
-					if (errork_max>integrator_error){
-						integrator_error = errork_max;
-					}
-				}else{
+			if (isnormal(errork_max)){
+				const double dtparticle = pow(integrator_epsilon/errork_max,1./7.)*dt_done;
+				particles[i].dtexp = floor(log(dtparticle/integrator_max_dt)/log(8.));
+				if (particles[i].dtexp>0){
 					particles[i].dtexp = 0;
 				}
+				 //printf("%d   %e    %d \n",i,dtparticle,particles[i].dtexp);
+				if (errork_max>integrator_error){
+					integrator_error = errork_max;
+				}
+			}else{
+				particles[i].dtexp = 0;
 			}
 		}
-		int min_dtexp = 0;
-		for(int i=0;i<N;i++) {
-			if (particles[i].dtexp<min_dtexp){
-				min_dtexp = particles[i].dtexp;
-			}
-		}
-		printf("mindtxexp %d\n",min_dtexp);
-
-
-		dt = integrator_max_dt* pow(2.,min_dtexp);
-		
 	}
 
 	// Find new position and velocity values at end of the sequence
@@ -478,51 +491,24 @@ int integrator_ias15_step() {
 	dt_last_success = dt_done;
 	copybuffers(e,er,N3);		
 	copybuffers(b,br,N3);		
-	double ratio = dt/dt_done;
-	predict_next_step(ratio, N3, e, b);
-	return 1; // Success.
-}
-
-void predict_next_step(double ratio, int N3, double* _e[7], double* _b[7]){
-	// Predict new B values to use at the start of the next sequence. The predicted
-	// values from the last call are saved as E. The correction, BD, between the
-	// actual and predicted values of B is applied in advance as a correction.
-	//
-	const double q1 = ratio;
-	const double q2 = q1 * q1;
-	const double q3 = q1 * q2;
-	const double q4 = q2 * q2;
-	const double q5 = q2 * q3;
-	const double q6 = q3 * q3;
-	const double q7 = q3 * q4;
-
-	for(int k=0;k<N3;++k) {
-		double be0 = _b[0][k] - _e[0][k];
-		double be1 = _b[1][k] - _e[1][k];
-		double be2 = _b[2][k] - _e[2][k];
-		double be3 = _b[3][k] - _e[3][k];
-		double be4 = _b[4][k] - _e[4][k];
-		double be5 = _b[5][k] - _e[5][k];
-		double be6 = _b[6][k] - _e[6][k];
-
-
-		e[0][k] = q1*(_b[6][k]* 7.0 + _b[5][k]* 6.0 + _b[4][k]* 5.0 + _b[3][k]* 4.0 + _b[2][k]* 3.0 + _b[1][k]*2.0 + _b[0][k]);
-		e[1][k] = q2*(_b[6][k]*21.0 + _b[5][k]*15.0 + _b[4][k]*10.0 + _b[3][k]* 6.0 + _b[2][k]* 3.0 + _b[1][k]);
-		e[2][k] = q3*(_b[6][k]*35.0 + _b[5][k]*20.0 + _b[4][k]*10.0 + _b[3][k]* 4.0 + _b[2][k]);
-		e[3][k] = q4*(_b[6][k]*35.0 + _b[5][k]*15.0 + _b[4][k]* 5.0 + _b[3][k]);
-		e[4][k] = q5*(_b[6][k]*21.0 + _b[5][k]* 6.0 + _b[4][k]);
-		e[5][k] = q6*(_b[6][k]* 7.0 + _b[5][k]);
-		e[6][k] = q7* _b[6][k];
-		
-
-		b[0][k] = e[0][k] + be0;
-		b[1][k] = e[1][k] + be1;
-		b[2][k] = e[2][k] + be2;
-		b[3][k] = e[3][k] + be3;
-		b[4][k] = e[4][k] + be4;
-		b[5][k] = e[5][k] + be5;
-		b[6][k] = e[6][k] + be6;
+	
+	
+	dtexp_min = 0;	
+	for(int i=0;i<N;i++) {
+		if (particles[i].dtexp<dtexp_min && isnormal(particles[i].dtexp)){
+			dtexp_min = particles[i].dtexp;
+		}
 	}
+	dtexp_substep++;
+	if (dtexp_substep==8){
+		dtexp++;
+		dtexp_substep = 0;
+		if (dtexp>0){
+			t += integrator_max_dt;
+			dtexp = dtexp_min;
+		}
+	}
+	return 1; // Success.
 }
 
 void copybuffers(double* _a[7], double* _b[7], int N3){
