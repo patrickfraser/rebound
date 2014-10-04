@@ -57,14 +57,14 @@ int display_spheres = 1;	/**< Switches between point sprite and real spheres. */
 int display_spheres = 0;	/**< Switches between point sprite and real spheres. */
 #endif // COLLISIONS_NONE
 int display_init_done = 0;	
-int display_pause_sim = 0;	/**< Pauses simulation. */
+int display_pause_sim = 1;	/**< Pauses simulation. */
 int display_pause = 0;		/**< Pauses visualization, but keep simulation running */
 int display_tree = 0;		/**< Shows/hides tree structure. */
 int display_mass = 0;		/**< Shows/hides centre of mass in tree structure. */
 int display_wire = 0;		/**< Shows/hides orbit wires. */
 int display_clear = 1;		/**< Toggles clearing the display on each draw. */
 int display_ghostboxes = 0;	/**< Shows/hides ghost boxes. */
-int display_reference = -1;	/**< Particle used as a reference for rotation. */
+int display_reference = 4;	/**< Particle used as a reference for rotation. */
 double display_rotate_x = 0;	/**< Rotate everything around the x-axis. */
 double display_rotate_z = 0;	/**< Rotate everything around the z-axis. */
 #define DEG2RAD (M_PI/180.)
@@ -83,13 +83,13 @@ void displayKey(unsigned char key, int x, int y){
 			break;
 		case ' ':
 			display_pause_sim=!display_pause_sim;
-			if (display_pause_sim){
-				printf("Pause.\n");
-				glutIdleFunc(NULL);
-			}else{
-				printf("Resume.\n");
-				glutIdleFunc(iterate);
-			}
+		//	if (display_pause_sim){
+		//		printf("Pause.\n");
+		//		glutIdleFunc(NULL);
+		//	}else{
+		//		printf("Resume.\n");
+		//		glutIdleFunc(iterate);
+		//	}
 			break;
 		case 's': case 'S':
 			display_spheres = !display_spheres;
@@ -179,6 +179,10 @@ void display_entire_tree(){
 #endif
 
 void display(){
+	if (t<78) return;
+	if (display_pause_sim){
+		sleep(1);
+	}
 	if (display_pause) return;
 #ifdef TREE
 	if (display_tree){

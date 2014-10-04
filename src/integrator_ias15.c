@@ -87,8 +87,6 @@ double* at   	= NULL;			// Temporary buffer for acceleration
 double* x0  	= NULL;			// Temporary buffer for position (used for initial values at h=0) 
 double* v0  	= NULL;			//                      velocity
 double* a0  	= NULL;			//                      acceleration
-double* csx  	= NULL;			//                      compensated summation
-double* csv  	= NULL;			//                      compensated summation
 
 double* g[7] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL} ;
 double* b[7] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL} ;
@@ -150,13 +148,6 @@ int integrator_ias15_step() {
 		x0 = realloc(x0,sizeof(double)*N3);
 		v0 = realloc(v0,sizeof(double)*N3);
 		a0 = realloc(a0,sizeof(double)*N3);
-		csx= realloc(csx,sizeof(double)*N3);
-		csv= realloc(csv,sizeof(double)*N3);
-		for (int i=0;i<N3;i++){
-			// Kill compensated summation coefficients
-			csx[i] = 0;
-			csv[i] = 0;
-		}
 		N3allocated = N3;
 	}
 	
@@ -175,7 +166,7 @@ int integrator_ias15_step() {
 	// actual and predicted values of B is applied in advance as a correction.
 	
 	for(int k=0;k<N3;++k) {
-		if (isnormal(particles[k/3].dtdone)){
+		if (0 && isnormal(particles[k/3].dtdone)){
 #warning TODO
 			const double q1 = dt/particles[k/3].dtdone;
 			const double q2 = q1 * q1;
@@ -288,6 +279,7 @@ int integrator_ias15_step() {
 					particles[i].x = particles[i].xpast[-dtexp+1][n];
 					particles[i].y = particles[i].ypast[-dtexp+1][n];
 					particles[i].z = particles[i].zpast[-dtexp+1][n];
+					printf("                           %e %e %e\n",particles[i].x,particles[i].y,particles[i].z);
 				}else{
 					const double hn = h[n]+(t-particles[i].tdone)/dt;
 					s[0] = dt * hn;
@@ -304,11 +296,11 @@ int integrator_ias15_step() {
 					const int k1 = 3*i+1;
 					const int k2 = 3*i+2;
 
-					double xk0  = csx[k0] + (s[8]*b[6][k0] + s[7]*b[5][k0] + s[6]*b[4][k0] + s[5]*b[3][k0] + s[4]*b[2][k0] + s[3]*b[1][k0] + s[2]*b[0][k0] + s[1]*a0[k0] + s[0]*v0[k0] );
+					double xk0  = (s[8]*b[6][k0] + s[7]*b[5][k0] + s[6]*b[4][k0] + s[5]*b[3][k0] + s[4]*b[2][k0] + s[3]*b[1][k0] + s[2]*b[0][k0] + s[1]*a0[k0] + s[0]*v0[k0] );
 					particles[i].x = xk0 + x0[k0];
-					double xk1  = csx[k1] + (s[8]*b[6][k1] + s[7]*b[5][k1] + s[6]*b[4][k1] + s[5]*b[3][k1] + s[4]*b[2][k1] + s[3]*b[1][k1] + s[2]*b[0][k1] + s[1]*a0[k1] + s[0]*v0[k1] );
+					double xk1  = (s[8]*b[6][k1] + s[7]*b[5][k1] + s[6]*b[4][k1] + s[5]*b[3][k1] + s[4]*b[2][k1] + s[3]*b[1][k1] + s[2]*b[0][k1] + s[1]*a0[k1] + s[0]*v0[k1] );
 					particles[i].y = xk1 + x0[k1];
-					double xk2  = csx[k2] + (s[8]*b[6][k2] + s[7]*b[5][k2] + s[6]*b[4][k2] + s[5]*b[3][k2] + s[4]*b[2][k2] + s[3]*b[1][k2] + s[2]*b[0][k2] + s[1]*a0[k2] + s[0]*v0[k2] );
+					double xk2  = (s[8]*b[6][k2] + s[7]*b[5][k2] + s[6]*b[4][k2] + s[5]*b[3][k2] + s[4]*b[2][k2] + s[3]*b[1][k2] + s[2]*b[0][k2] + s[1]*a0[k2] + s[0]*v0[k2] );
 					particles[i].z = xk2 + x0[k2];
 				}
 			}
@@ -329,11 +321,11 @@ int integrator_ias15_step() {
 					const int k1 = 3*i+1;
 					const int k2 = 3*i+2;
 
-					double vk0 =  csv[k0] + s[7]*b[6][k0] + s[6]*b[5][k0] + s[5]*b[4][k0] + s[4]*b[3][k0] + s[3]*b[2][k0] + s[2]*b[1][k0] + s[1]*b[0][k0] + s[0]*a0[k0];
+					double vk0 =  s[7]*b[6][k0] + s[6]*b[5][k0] + s[5]*b[4][k0] + s[4]*b[3][k0] + s[3]*b[2][k0] + s[2]*b[1][k0] + s[1]*b[0][k0] + s[0]*a0[k0];
 					particles[i].vx = vk0 + v0[k0];
-					double vk1 =  csv[k1] + s[7]*b[6][k1] + s[6]*b[5][k1] + s[5]*b[4][k1] + s[4]*b[3][k1] + s[3]*b[2][k1] + s[2]*b[1][k1] + s[1]*b[0][k1] + s[0]*a0[k1];
+					double vk1 =  s[7]*b[6][k1] + s[6]*b[5][k1] + s[5]*b[4][k1] + s[4]*b[3][k1] + s[3]*b[2][k1] + s[2]*b[1][k1] + s[1]*b[0][k1] + s[0]*a0[k1];
 					particles[i].vy = vk1 + v0[k1];
-					double vk2 =  csv[k2] + s[7]*b[6][k2] + s[6]*b[5][k2] + s[5]*b[4][k2] + s[4]*b[3][k2] + s[3]*b[2][k2] + s[2]*b[1][k2] + s[1]*b[0][k2] + s[0]*a0[k2];
+					double vk2 =  s[7]*b[6][k2] + s[6]*b[5][k2] + s[5]*b[4][k2] + s[4]*b[3][k2] + s[3]*b[2][k2] + s[2]*b[1][k2] + s[1]*b[0][k2] + s[0]*a0[k2];
 					particles[i].vz = vk2 + v0[k2];
 				}
 			}
@@ -451,20 +443,8 @@ int integrator_ias15_step() {
 	for(int i=0;i<N;i++) {
 		if (particles[i].dtexp==dtexp){
 			for (int k=3*i;k<3*(i+1);k++){
-				{
-					double a = x0[k];
-					csx[k]  +=  (b[6][k]/72. + b[5][k]/56. + b[4][k]/42. + b[3][k]/30. + b[2][k]/20. + b[1][k]/12. + b[0][k]/6. + a0[k]/2.) 
-							* dt_done2 + v0[k] * dt;
-					x0[k]    = a + csx[k];
-					csx[k]  += a - x0[k]; 
-				}
-				{
-					double a = v0[k]; 
-					csv[k]  += (b[6][k]/8. + b[5][k]/7. + b[4][k]/6. + b[3][k]/5. + b[2][k]/4. + b[1][k]/3. + b[0][k]/2. + a0[k])
-							* dt;
-					v0[k]    = a + csv[k];
-					csv[k]  += a - v0[k];
-				}
+				x0[k]  += (b[6][k]/72. + b[5][k]/56. + b[4][k]/42. + b[3][k]/30. + b[2][k]/20. + b[1][k]/12. + b[0][k]/6. + a0[k]/2.) * dt_done2 + v0[k] * dt;
+				v0[k]  += (b[6][k]/8. + b[5][k]/7. + b[4][k]/6. + b[3][k]/5. + b[2][k]/4. + b[1][k]/3. + b[0][k]/2. + a0[k]) * dt;
 
 				// Swap particle buffers
 				er[0][k] = e[0][k];
@@ -544,6 +524,7 @@ int integrator_ias15_step() {
 	}
 	dtexp_substep[-dtexp]++;
 	t += dt;
+	printf("dt += %e\n",dt);
 	if (dtexp_substep[-dtexp]==8){
 		dtexp_substep[-dtexp]=0;
 		dtexp++;
@@ -556,6 +537,7 @@ int integrator_ias15_step() {
 				double st_dt = h[st+1]-h[st];
 				dtt  *= st_dt;
 			}
+			printf("dt -= %e\n",dtt);
 			t -= dtt;
 
 		}

@@ -77,9 +77,7 @@ void problem_inloop(){
 }
 
 void problem_output(){
-	if (output_check(10.*2.*M_PI)){  
-		output_timing();
-	}
+	output_timing();
 }
 
 void problem_finish(){
