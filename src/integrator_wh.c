@@ -124,49 +124,7 @@ double integrator_megno_deltad_delta2(){
         }
         return deltad/delta2;
 }
-void move_to_center_of_momentum_megno(){
-	double m = 0;
-	double x = 0;
-	double y = 0;
-	double z = 0;
-	double vx = 0;
-	double vy = 0;
-	double vz = 0;
-	for (int i=0;i<N-N_megno;i++){
-		struct particle p = particles[i];
-		m  += p.m;
-		x  += p.x*p.m;
-		y  += p.y*p.m;
-		z  += p.z*p.m;
-		vx += p.vx*p.m;
-		vy += p.vy*p.m;
-		vz += p.vz*p.m;
-	}
-	x /= m;
-	y /= m;
-	z /= m;
-	vx /= m;
-	vy /= m;
-	vz /= m;
-	for (int i=0;i<N-N_megno;i++){
-		particles[i].x  -= x;
-		particles[i].y  -= y;
-		particles[i].z  -= z;
-		particles[i].vx -= vx;
-		particles[i].vy -= vy;
-		particles[i].vz -= vz;
-	}
-}
-void move_to_heliocentric_megno(){
-	for (int i=1;i<N-N_megno;i++){
-		particles[i].x -= particles[0].x;	particles[i].y -= particles[0].y;	particles[i].z -= particles[0].z;
-		particles[i].vx -= particles[0].vx;	particles[i].vy -= particles[0].vy;	particles[i].vz -= particles[0].vz;
-	}
-	particles[0].x = 0;	particles[0].y = 0;	particles[0].z = 0;
-	particles[0].vx= 0;	particles[0].vy= 0;	particles[0].vz= 0;
-}
 void integrator_megno_calculate_acceleration(){
-	move_to_center_of_momentum_megno();
 #pragma omp parallel for schedule(guided)
 	for (int i=N-N_megno; i<N; i++){
 	for (int j=N-N_megno; j<N; j++){
@@ -202,7 +160,6 @@ void integrator_megno_calculate_acceleration(){
 			);
 	}
 	}
-	move_to_heliocentric_megno();
 }
 
 int _N_active;
@@ -249,7 +206,7 @@ void integrator_part2(){
 	t+=dt/2.;
 	
 	if (N_megno){
-		double integrator_megno_thisdt = t * integrator_megno_deltad_delta2();
+		double integrator_megno_thisdt = 2.*t * integrator_megno_deltad_delta2();
 		// Calculate running Y(t)
 		integrator_megno_Ys += dt*integrator_megno_thisdt;
 		double Y = integrator_megno_Ys/t;
