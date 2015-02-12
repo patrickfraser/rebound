@@ -75,7 +75,6 @@ void problem_init(int argc, char* argv[]){
 	// Add megno particles 
 	integrator_megno_init(1e-16);  // N = 6 after this function call. 
 	// The first half of particles are real particles, the second half are particles following the variational equations.
-	move_to_heliocentric_megno();
 }
 
 void problem_output(){
@@ -88,6 +87,9 @@ void problem_output(){
 		fclose(f);
 		printf("%.1f     <Y> = %0.2f\n",dt,integrator_megno());
 	}
+	FILE* f = fopen("pos.txt","a+");
+	fprintf(f,"%e %e\n",particles[4].x,particles[4].y);
+	fclose(f);
 }
 
 void problem_finish(){
