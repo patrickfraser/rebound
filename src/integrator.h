@@ -60,7 +60,6 @@ extern double integrator_epsilon;
  **/
 extern double integrator_min_dt;
 
-#ifdef INTEGRATOR_IAS15 // MEGNO Routines are currently only implemented for IAS15
 /* 
  * Init the MEGNO particles
  **/
@@ -76,6 +75,5 @@ double integrator_megno();
  **/
 double integrator_lyapunov();
 
-#endif // INTEGRATOR_IAS15
 
 #endif
