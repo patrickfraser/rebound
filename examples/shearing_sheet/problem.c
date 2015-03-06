@@ -45,6 +45,7 @@
 
 extern double OMEGA;
 extern double minimum_collision_velocity;
+double moon_radius = 3*4.961;
 
 extern double (*coefficient_of_restitution_for_velocity)(double); 
 double coefficient_of_restitution_bridges(double v); 
@@ -56,7 +57,7 @@ void problem_init(int argc, char* argv[]){
 #ifdef GRAVITY_TREE
 	opening_angle2	= .5;					// This determines the precission of the tree code gravity calculation.
 #endif // GRAVITY_TREE
-	OMEGA 				= 0.00013143527;	// 1/s
+	OMEGA 				= 1.22e-4;      	// 1/s
 	G 				= 6.67428e-11;		// N / (1e-5 kg)^2 m^2
 	softening 			= 0.1;			// m
 	dt 				= 1e-3*2.*M_PI/OMEGA;	// s
@@ -70,14 +71,14 @@ void problem_init(int argc, char* argv[]){
 	// This example uses two root boxes in the x and y direction. 
 	// Although not necessary in this case, it allows for the parallelization using MPI. 
 	// See Rein & Liu for a description of what a root box is in this context.
-	root_nx = 2; root_ny = 2; root_nz = 1;			
-	nghostx = 2; nghosty = 2; nghostz = 0; 			// Use two ghost rings
-	double surfacedensity 		= 400; 			// kg/m^2
-	double particle_density		= 400;			// kg/m^3
+	root_nx = 6; root_ny = 6; root_nz = 1;			
+	nghostx = 0; nghosty = 2; nghostz = 0; 			// Use two ghost rings
+	double surfacedensity 		= 283.0; 			// kg/m^2
+	double particle_density		= 200;			// kg/m^3
 	double particle_radius_min 	= 1;			// m
 	double particle_radius_max 	= 4;			// m
 	double particle_radius_slope 	= -3;	
-	boxsize 			= 100;			// m
+	boxsize 			= 400;			// m
 	if (argc>1){						// Try to read boxsize from command line
 		boxsize = atof(argv[1]);
 	}
@@ -92,29 +93,60 @@ void problem_init(int argc, char* argv[]){
 	minimum_collision_velocity = particle_radius_min*OMEGA*0.001;  // small fraction of the shear accross a particle
 
 
-	// Add all ring paricles
-	double total_mass = surfacedensity*boxsize_x*boxsize_y;
+	// Hanno: Add all ring paricles
+	double total_mass = surfacedensity*boxsize_x*boxsize_y/5.;
 	double mass = 0;
 	while(mass<total_mass){
 		struct particle pt;
-		pt.x 		= tools_uniform(-boxsize_x/2.,boxsize_x/2.);
+		pt.x 		= tools_uniform(boxsize_x/10.,boxsize_x*(3./10.));
 		pt.y 		= tools_uniform(-boxsize_y/2.,boxsize_y/2.);
-		pt.z 		= tools_normal(1.);					// m
+		pt.z 		= tools_normal(1.);			 // m
 		pt.vx 		= 0;
-		pt.vy 		= -1.5*pt.x*OMEGA;
+		pt.vy 		= -1.5*(pt.x)*OMEGA;
 		pt.vz 		= 0;
 		pt.ax 		= 0;
 		pt.ay 		= 0;
 		pt.az 		= 0;
 		double radius 	= tools_powerlaw(particle_radius_min,particle_radius_max,particle_radius_slope);
-#ifndef COLLISIONS_NONE
-		pt.r 		= radius;						// m
-#endif
+	#ifndef COLLISIONS_NONE
+		pt.r 		= radius;			  // m
+	#endif
 		double		particle_mass = particle_density*4./3.*M_PI*radius*radius*radius;
 		pt.m 		= particle_mass; 	// kg
 		particles_add(pt);
 		mass += particle_mass;
 	}
+	//-Moi: Add Daphnis
+	struct particle ptd;
+	ptd.x           = 0;
+	ptd.y 		= 0;
+	ptd.z 		= 0;		       // m
+	ptd.vx 		= 0;
+	ptd.vy 		= 0;
+	ptd.vz 		= 0;
+	ptd.ax 		= 0;
+	ptd.ay 		= 0;
+	ptd.az 		= 0;
+	/////////////////////double radius 	= 8;
+	//#ifndef COLLISIONS_NONE
+	/////////////////////ptd.r 		= radius;	       // -m
+	//#endif
+	//double	       particle_mass = particle_density*4./3.*M_PI*radius*radius*radius;
+	//double		particle_mass = 7.7e13;  //actual
+	double          real2sim_ratio = 670.4; // M_Daphnis/Hill_radius in kg/m^3 
+	double          hill_r = 0.231*boxsize_x/10.; // fraction of separation distance * radius of simulated Keeler gap    in m 
+	//double		particle_mass = real2sim_ratio*hill_r*hill_r*hill_r;    //incorrectly filles entire hill radius with mass 
+	double          daphnis_density = 340.0; // kg/m^3
+	// for reference, moon_radius = pow(particle_mass/(4*M_PI*daphnis_density),0.333);
+	//	double particle_mass = 8.262e6; //kg
+	double sat_mass = 568.3e24; //kg
+	double sep_dis = 136505500.0; //m - Separation distance (Saturn,daphnis)
+	double particle_mass = 1.5*(hill_r/sep_dis)*(hill_r/sep_dis)*(hill_r/sep_dis)*3*sat_mass;
+	ptd.m 		= particle_mass; 	// kg
+	ptd.r = moon_radius;
+	particles_add(ptd);
+	
+	// end of moi
 }
 
 // This example is using a custom velocity dependend coefficient of restitution
@@ -126,6 +158,17 @@ double coefficient_of_restitution_bridges(double v){
 	return eps;
 }
 
+void problem_inloop(){
+  for(int i=0; i<N; i++){
+    if (particles[i].r == moon_radius){
+      particles[i].x = 0;
+      particles[i].y = 0;
+      particles[i].z = 0;
+    }
+}
+
+}
+
 void problem_output(){
 #ifdef LIBPNG
 	if (output_check(1e-3*2.*M_PI/OMEGA)){
@@ -133,13 +176,21 @@ void problem_output(){
 	}
 #endif //LIBPNG
 	if (output_check(1e-3*2.*M_PI/OMEGA)){
-		output_timing();
-		//output_append_velocity_dispersion("veldisp.txt");
+	        output_timing();
+		output_append_velocity_dispersion("veldisp.txt");
+		output_binary_positions("binary_positions.bin");
+		output_binary("binary_structs.bin");
 	}
-	if (output_check(2.*M_PI/OMEGA)){
-		//output_ascii("position.txt");
+	if (output_check(0.05*M_PI/OMEGA)){
+	  output_ascii("position.txt");
+	  // output_orbits("orbital_parameters.txt");
 	}
+	if (output_check(2*M_PI/OMEGA)){
+	  output_append_velocity_dispersion("veldisp_orb.txt");
+	}
+
 }
+
 
 void problem_finish(){
 }
